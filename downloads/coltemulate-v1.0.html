@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ColtEmulate v1.0.0 — Cross-Platform OS & Binary Hypervisor | ColtApps</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Inter"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root {
+      --bg-base: #0b0f17;
+      --bg-panel: #111827;
+      --bg-elevated: #161f32;
+      --border-1px: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --vm-accent: #0ea5e9;
+      --vm-accent-soft: rgba(14, 165, 233, 0.14);
+      --vm-accent-border: rgba(14, 165, 233, 0.4);
+    }
+
+    /* Muir Colts Navy & Gold Hypervisor Theme */
+    html.theme-muir {
+      --bg-base: #060f1d;
+      --bg-panel: #0b192e;
+      --bg-elevated: #102442;
+      --border-1px: #1e3a5f;
+      --text-main: #f8fafc;
+      --text-muted: #93c5fd;
+    }
+
+    /* Guest OS Accent Overrides */
+    body[data-os="win"] {
+      --vm-accent: #0ea5e9;
+      --vm-accent-soft: rgba(14, 165, 233, 0.14);
+      --vm-accent-border: rgba(14, 165, 233, 0.45);
+    }
+    body[data-os="mac"] {
+      --vm-accent: #a855f7;
+      --vm-accent-soft: rgba(168, 85, 247, 0.14);
+      --vm-accent-border: rgba(168, 85, 247, 0.45);
+    }
+    body[data-os="linux"] {
+      --vm-accent: #f59e0b;
+      --vm-accent-soft: rgba(245, 158, 11, 0.14);
+      --vm-accent-border: rgba(245, 158, 11, 0.45);
+    }
+    body[data-os="retro"] {
+      --vm-accent: #10b981;
+      --vm-accent-soft: rgba(16, 185, 129, 0.14);
+      --vm-accent-border: rgba(16, 185, 129, 0.45);
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+    }
+    .hv-panel {
+      background-color: var(--bg-panel);
+      border-color: var(--border-1px);
+    }
+    .hv-elevated {
+      background-color: var(--bg-elevated);
+      border-color: var(--border-1px);
+    }
+    .hv-border {
+      border-color: var(--border-1px);
+    }
+    .hv-muted {
+      color: var(--text-muted);
+    }
+    .vm-accent-bg {
+      background-color: var(--vm-accent);
+      color: #060b14;
+    }
+    .vm-accent-text {
+      color: var(--vm-accent);
+    }
+    .vm-accent-soft {
+      background-color: var(--vm-accent-soft);
+      border-color: var(--vm-accent-border);
+    }
+
+    /* Subtle CRT scanline effect for ColtRetro VM */
+    .crt-scanlines {
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, 0.25) 50%
+      );
+      background-size: 100% 4px;
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.45); }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body data-os="win" class="h-screen w-screen overflow-hidden flex flex-col font-sans select-none">
+
+  <!-- TOP HYPERVISOR TELEMETRY HEADER -->
+  <header class="hv-panel border-b px-3 py-2 flex flex-wrap items-center justify-between gap-2 z-30 flex-shrink-0">
+    <!-- Brand & Institution Badge -->
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-lg vm-accent-bg flex items-center justify-center shadow-sm">
+        <i data-lucide="cpu" class="w-4 h-4 stroke-[2.5]"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-extrabold tracking-tight">ColtEmulate</span>
+          <span class="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded vm-accent-soft vm-accent-text border">v1.0.0</span>
+          <span class="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-mono font-semibold">
+            Built for Muir Middle School (HVS) &bull; ColtApps
+          </span>
+        </div>
+        <div class="text-[11px] font-mono hv-muted hidden sm:block">
+          Cross-Platform Binary Translation &amp; Guest OS Hypervisor
+        </div>
+      </div>
+    </div>
+
+    <!-- Live VM Telemetry Bar -->
+    <div class="flex items-center gap-2 sm:gap-3 font-mono text-xs">
+      <div class="hidden lg:flex items-center gap-3 px-3 py-1 rounded-lg hv-elevated border hv-border">
+        <div class="flex items-center gap-1.5">
+          <span id="telemetry-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="telemetry-state" class="font-bold text-emerald-400">RUNNING</span>
+        </div>
+        <span class="hv-muted">|</span>
+        <div>CPU: <span id="telemetry-cpu" class="font-bold vm-accent-text">14%</span></div>
+        <span class="hv-muted">|</span>
+        <div>RAM: <span id="telemetry-ram" class="font-bold">2.4 / 8 GB</span></div>
+        <span class="hv-muted">|</span>
+        <div>ARCH: <span id="telemetry-arch" class="font-bold text-amber-400">x86_64</span></div>
+      </div>
+
+      <!-- Serial Console Toggle -->
+      <button id="btn-toggle-console" title="Toggle Hypervisor Serial Console" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hv-elevated border hv-border hover:opacity-85 text-xs font-mono font-semibold">
+        <i data-lucide="terminal" class="w-3.5 h-3.5 vm-accent-text"></i>
+        <span class="hidden sm:inline">Serial Log</span>
+      </button>
+
+      <!-- Theme Toggle (Dark Slate / Muir Colts Navy & Gold) -->
+      <button id="btn-theme-toggle" title="Switch Hypervisor Theme" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hv-elevated border hv-border hover:opacity-85 text-xs font-mono font-semibold">
+        <i data-lucide="palette" class="w-3.5 h-3.5 text-amber-400"></i>
+        <span id="theme-label">Slate Dark</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN HYPERVISOR WORKSPACE -->
+  <div id="main-split" class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+    
+    <!-- LEFT SIDEBAR: BINARY DROPZONE, INSPECTOR & HARDWARE CONFIG -->
+    <aside id="left-sidebar" class="w-full lg:w-80 xl:w-96 hv-panel border-b lg:border-b-0 lg:border-r flex flex-col overflow-y-auto flex-shrink-0 z-20 max-h-[45vh] lg:max-h-full">
+      <div class="p-3 space-y-3.5">
+
+        <!-- 1. Universal File Dropzone -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-[11px] font-mono font-bold uppercase hv-muted">
+            <span>1. Binary / Disk Image Dropzone</span>
+            <span>.exe .dmg .iso .rom</span>
+          </div>
+
+          <div
+            id="dropzone"
+            class="hv-elevated border-2 border-dashed hv-border hover:border-sky-400 rounded-xl p-3.5 text-center cursor-pointer transition group"
+          >
+            <input id="file-input" type="file" accept=".exe,.dmg,.iso,.apk,.deb,.sh,.bin,.rom,.img" class="hidden" />
+            <div class="w-9 h-9 mx-auto rounded-lg vm-accent-soft vm-accent-text border flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform">
+              <i data-lucide="file-up" class="w-4 h-4"></i>
+            </div>
+            <div class="text-xs font-bold">Drop .exe, .dmg, .iso, .apk, .deb, or .rom</div>
+            <div class="text-[11px] hv-muted mt-0.5">or <span class="vm-accent-text underline">browse local files</span> to inspect magic bytes</div>
+          </div>
+
+          <!-- Quick-Load Sample Payloads -->
+          <div class="space-y-1">
+            <div class="text-[10px] font-mono uppercase hv-muted">Quick-Load Sample Payloads:</div>
+            <div class="grid grid-cols-2 gap-1.5 font-mono text-[11px]">
+              <button data-sample="calcExe" class="sample-btn px-2 py-1.5 rounded-lg hv-elevated border hv-border hover:border-sky-400 text-left truncate">
+                <span class="text-sky-400 font-bold">EXE</span> MuirCalc_Setup.exe
+              </button>
+              <button data-sample="studioDmg" class="sample-btn px-2 py-1.5 rounded-lg hv-elevated border hv-border hover:border-purple-400 text-left truncate">
+                <span class="text-purple-400 font-bold">DMG</span> ColtStudio.dmg
+              </button>
+              <button data-sample="ubuntuIso" class="sample-btn px-2 py-1.5 rounded-lg hv-elevated border hv-border hover:border-amber-400 text-left truncate">
+                <span class="text-amber-400 font-bold">ISO</span> ubuntu-24.04.iso
+              </button>
+              <button data-sample="snakeRom" class="sample-btn px-2 py-1.5 rounded-lg hv-elevated border hv-border hover:border-emerald-400 text-left truncate">
+                <span class="text-emerald-400 font-bold">ROM</span> RetroSnake.rom
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Binary Header Inspector Card -->
+        <div class="hv-elevated border hv-border rounded-xl p-3 space-y-2 font-mono text-xs">
+          <div class="flex items-center justify-between border-b hv-border pb-1.5">
+            <span class="text-[11px] font-bold uppercase vm-accent-text flex items-center gap-1.5">
+              <i data-lucide="binary" class="w-3.5 h-3.5"></i>
+              Binary Header Inspector
+            </span>
+            <span id="insp-badge" class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] hv-muted">READY</span>
+          </div>
+
+          <div id="inspector-content" class="space-y-1.5 text-[11px]">
+            <div class="flex justify-between"><span class="hv-muted">File:</span><span id="insp-name" class="font-bold truncate max-w-[170px]">MuirCalc_Setup.exe</span></div>
+            <div class="flex justify-between"><span class="hv-muted">Magic Bytes:</span><span id="insp-magic" class="text-emerald-400 font-bold">4D 5A (MZ / Win32 PE)</span></div>
+            <div class="flex justify-between"><span class="hv-muted">Target OS:</span><span id="insp-os" class="font-bold">Windows 11 (x86_64)</span></div>
+            <div class="flex justify-between"><span class="hv-muted">Size / Entropy:</span><span id="insp-size">4.20 MB &bull; 6.42 bits</span></div>
+            <div class="flex justify-between"><span class="hv-muted">Checksum:</span><span id="insp-hash" class="hv-muted">SHA256:9f84...c12a</span></div>
+          </div>
+
+          <div class="pt-1 flex gap-1.5">
+            <button id="btn-mount-run" class="flex-1 py-1.5 px-2.5 rounded-lg vm-accent-bg font-bold text-xs flex items-center justify-center gap-1.5 hover:opacity-90 transition">
+              <i data-lucide="play" class="w-3.5 h-3.5"></i>
+              <span>Mount &amp; Execute in VM</span>
+            </button>
+            <button id="btn-eject-image" title="Eject Mounted Image" class="px-2.5 py-1.5 rounded-lg hv-panel border hv-border hover:text-rose-400 transition">
+              <i data-lucide="eject" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Guest OS Virtual Machine Profiles -->
+        <div class="space-y-1.5">
+          <div class="text-[11px] font-mono font-bold uppercase hv-muted">2. Guest OS Profile</div>
+          <div class="grid grid-cols-2 gap-1.5 text-xs">
+            <button data-vm="win" class="vm-profile-btn p-2 rounded-xl border text-left transition">
+              <div class="font-bold flex items-center justify-between">
+                <span>ColtWin VM</span>
+                <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+              </div>
+              <div class="text-[10px] font-mono hv-muted mt-0.5">Win11 / Win32 Layer</div>
+            </button>
+
+            <button data-vm="mac" class="vm-profile-btn p-2 rounded-xl border text-left transition">
+              <div class="font-bold flex items-center justify-between">
+                <span>ColtMac VM</span>
+                <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+              </div>
+              <div class="text-[10px] font-mono hv-muted mt-0.5">macOS Sequoia / ARM64</div>
+            </button>
+
+            <button data-vm="linux" class="vm-profile-btn p-2 rounded-xl border text-left transition">
+              <div class="font-bold flex items-center justify-between">
+                <span>ColtLinux VM</span>
+                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+              </div>
+              <div class="text-[10px] font-mono hv-muted mt-0.5">Ubuntu 24.04 x86_64</div>
+            </button>
+
+            <button data-vm="retro" class="vm-profile-btn p-2 rounded-xl border text-left transition">
+              <div class="font-bold flex items-center justify-between">
+                <span>ColtRetro VM</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              </div>
+              <div class="text-[10px] font-mono hv-muted mt-0.5">FreeDOS / 16-bit Legacy</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. Virtual Hardware Config Sliders -->
+        <div class="hv-elevated border hv-border rounded-xl p-3 space-y-2.5 font-mono text-xs">
+          <div class="text-[11px] font-bold uppercase hv-muted">3. Virtual Hardware Allocation</div>
+
+          <div>
+            <div class="flex justify-between text-[11px] mb-1">
+              <span>vCPU Cores</span>
+              <span id="hw-cpu-label" class="font-bold vm-accent-text">4 Cores</span>
+            </div>
+            <input id="hw-cpu-slider" type="range" min="1" max="8" value="4" class="w-full accent-sky-400 cursor-pointer" />
+          </div>
+
+          <div>
+            <div class="flex justify-between text-[11px] mb-1">
+              <span>Virtual RAM</span>
+              <span id="hw-ram-label" class="font-bold vm-accent-text">8 GB</span>
+            </div>
+            <input id="hw-ram-slider" type="range" min="2" max="16" step="2" value="8" class="w-full accent-sky-400 cursor-pointer" />
+          </div>
+
+          <label class="flex items-center justify-between pt-1 cursor-pointer text-[11px]">
+            <span>VirGL / Metal GPU Acceleration</span>
+            <input id="hw-gpu-toggle" type="checkbox" checked class="w-4 h-4 accent-sky-400 rounded" />
+          </label>
+        </div>
+
+        <!-- Recent Mounted Images -->
+        <div class="space-y-1">
+          <div class="text-[10px] font-mono uppercase hv-muted">Recent Mounted Payloads</div>
+          <div id="recent-list" class="space-y-1 font-mono text-[11px]">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- RIGHT WORKSPACE: GUEST OS VM SCREEN + SERIAL CONSOLE DRAWER -->
+    <section class="flex-1 flex flex-col overflow-hidden relative bg-black">
+      
+      <!-- VM Hypervisor Control Strip -->
+      <div class="hv-panel border-b px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 font-mono text-xs z-20 flex-shrink-0">
+        <div class="flex items-center gap-2">
+          <span id="vm-header-pill" class="px-2 py-0.5 rounded vm-accent-soft vm-accent-text border font-bold">
+            ColtWin VM (Windows 11)
+          </span>
+          <span id="vm-mounted-label" class="text-[11px] hv-muted truncate max-w-[200px] sm:max-w-xs">
+            Mounted: MuirCalc_Setup.exe
+          </span>
+        </div>
+
+        <!-- VM Power & Snapshot Controls -->
+        <div class="flex items-center gap-1">
+          <button id="btn-vm-boot" title="Boot / Wake VM" class="px-2 py-1 rounded hv-elevated border hv-border hover:text-emerald-400 flex items-center gap-1">
+            <i data-lucide="power" class="w-3 h-3"></i>
+            <span class="hidden sm:inline">Boot</span>
+          </button>
+          <button id="btn-vm-reboot" title="Reboot Guest OS" class="px-2 py-1 rounded hv-elevated border hv-border hover:text-amber-400 flex items-center gap-1">
+            <i data-lucide="rotate-cw" class="w-3 h-3"></i>
+            <span class="hidden sm:inline">Reboot</span>
+          </button>
+          <button id="btn-vm-snapshot" title="Save VM State Snapshot" class="px-2 py-1 rounded hv-elevated border hv-border hover:text-sky-400 flex items-center gap-1">
+            <i data-lucide="camera" class="w-3 h-3"></i>
+            <span class="hidden sm:inline">Snapshot</span>
+          </button>
+          <button id="btn-vm-stop" title="Force Power Off VM" class="px-2 py-1 rounded hv-elevated border hv-border hover:text-rose-400 flex items-center gap-1">
+            <i data-lucide="square" class="w-3 h-3"></i>
+            <span class="hidden sm:inline">Stop</span>
+          </button>
+          <button id="btn-vm-fullscreen" title="Toggle Fullscreen VM Viewport" class="px-2 py-1 rounded vm-accent-bg font-bold flex items-center gap-1 ml-1">
+            <i data-lucide="maximize-2" class="w-3 h-3"></i>
+            <span class="hidden md:inline">Fullscreen</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- INTERACTIVE GUEST OS DESKTOP VIEWPORT -->
+      <div id="vm-screen" class="flex-1 relative overflow-hidden flex flex-col">
+        <!-- Rendered dynamically: Boot Log Screen, Powered Off Screen, or Interactive Guest OS Desktop -->
+      </div>
+
+      <!-- COLLAPSIBLE HYPERVISOR SERIAL CONSOLE & SYSCALL LOG -->
+      <div id="serial-drawer" class="hidden hv-panel border-t flex-col z-30 flex-shrink-0" style="height: 36%; min-height: 185px;">
+        <div class="hv-elevated border-b px-3 py-1 flex items-center justify-between font-mono text-xs">
+          <div class="flex items-center gap-2">
+            <span class="font-bold vm-accent-text">HYPERVISOR SERIAL CONSOLE (/dev/ttyS0)</span>
+            <span class="text-[10px] hv-muted hidden sm:inline">Commands: ls, uname -a, mount, run, clear, help</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button id="btn-serial-clear" class="px-2 py-0.5 rounded border hv-border text-[11px] hv-muted hover:opacity-80">Clear</button>
+            <button id="btn-serial-close" class="px-2 py-0.5 rounded border hv-border text-[11px] hover:text-rose-400">&times;</button>
+          </div>
+        </div>
+
+        <div id="serial-output" class="flex-1 overflow-y-auto p-2.5 font-mono text-xs space-y-1 bg-black/50">
+          <!-- Syscall and shell output -->
+        </div>
+
+        <form id="serial-form" class="hv-elevated border-t px-3 py-1.5 flex items-center gap-2 font-mono text-xs">
+          <span id="serial-prompt" class="vm-accent-text font-bold">colt@hypervisor:~$</span>
+          <input
+            id="serial-input"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Enter guest shell command (ls, uname -a, mount, run, help)..."
+            class="flex-1 bg-transparent focus:outline-none"
+          />
+        </form>
+      </div>
+
+    </section>
+  </div>
+
+  <!-- FOOTER CREDITS -->
+  <footer class="hv-panel border-t px-3 py-1.5 flex flex-col sm:flex-row items-center justify-between gap-1 font-mono text-[11px] hv-muted flex-shrink-0 z-30">
+    <span>ColtEmulate v1.0.0 &bull; Part of ColtApps &bull; Built by Henry Green for Muir Middle School (HVS)</span>
+    <span>Apache License 2.0 &bull; github.com/404henryyynotfound/colt-emulate</span>
+  </footer>
+
+  <!-- Toast Notification -->
+  <div id="hv-toast" class="hidden fixed bottom-10 right-4 px-3.5 py-2 rounded-lg hv-elevated border vm-accent-border vm-accent-text font-mono text-xs font-bold shadow-xl z-50">
+    [HV] Ready
+  </div>
+
+  <script>
+    /**
+     * ColtEmulate v1.0.0 — Cross-Platform OS & Binary Emulation Workspace
+     * Built by Henry Green for Muir Middle School (HVS) as part of ColtApps
+     * Storage Namespace: coltemulate_v1_
+     */
+    (function () {
+      const PREFIX = 'coltemulate_v1_';
+
+      // --- Guest OS Profiles Metadata ---
+      const OS_PROFILES = {
+        win: {
+          id: 'win',
+          name: 'ColtWin VM',
+          fullName: 'Windows 11 / Win32 Compatibility Layer',
+          arch: 'x86_64',
+          kernel: 'NT Kernel 10.0.22631 (Wine/DXVK Bridge)',
+          mountPoint: 'D:\\',
+          wallpaper: 'bg-gradient-to-br from-slate-900 via-sky-950 to-indigo-950',
+          bootLines: [
+            '[UEFI] Initializing ColtHypervisor v1.0.0 ACPI Tables...',
+            '[CPU ] Allocating vCPU cores with VT-x / AMD-V nested paging',
+            '[WIN32] Loading ntdll.dll, kernel32.dll, user32.dll translation shims',
+            '[DXVK] DirectX 11 -> Vulkan / WebGL2 shader pipeline ready',
+            '[DISK] Mounted virtual volume D:\\ (NTFS Emulated)',
+            '[OK  ] ColtWin Desktop Session started for Muir Student'
+          ]
+        },
+        mac: {
+          id: 'mac',
+          name: 'ColtMac VM',
+          fullName: 'macOS Sequoia / Darwin Runtime',
+          arch: 'ARM64 (Apple Silicon M-Series Emulated)',
+          kernel: 'Darwin Kernel Version 24.1.0 (XNU/Rosetta2)',
+          mountPoint: '/Volumes/MountedImage',
+          wallpaper: 'bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900',
+          bootLines: [
+            '[iBoot] ColtEmulate ARM64 Virtual Firmware initialized',
+            '[XNU  ] Mach microkernel + BSD subsystem online',
+            '[APFS ] Mounting /System/Volumes/Data (Case-insensitive APFS)',
+            '[HDI  ] Apple UDIF (.dmg) koly block-driver attached',
+            '[AQUA ] WindowServer & Metal compositor active',
+            '[OK   ] macOS Sequoia Desktop ready'
+          ]
+        },
+        linux: {
+          id: 'linux',
+          name: 'ColtLinux VM',
+          fullName: 'Ubuntu 24.04 LTS x86_64 Container',
+          arch: 'x86_64',
+          kernel: 'Linux 6.8.0-45-generic #45-Ubuntu SMP',
+          mountPoint: '/mnt/cdrom',
+          wallpaper: 'bg-gradient-to-br from-zinc-900 via-amber-950/70 to-stone-950',
+          bootLines: [
+            '[    0.000000] Linux version 6.8.0-colt (henry@muir-hvs)',
+            '[    0.214012] ACPI: IRQ0 used by override.',
+            '[    0.682190] EXT4-fs (vda1): mounted filesystem with ordered data mode',
+            '[    1.045112] systemd[1]: Reached target Graphical Interface.',
+            '[    1.310004] iso9660: Mounting virtual media at /mnt/cdrom',
+            '[OK] Ubuntu 24.04 Desktop Session Ready'
+          ]
+        },
+        retro: {
+          id: 'retro',
+          name: 'ColtRetro VM',
+          fullName: 'FreeDOS 1.3 / 16-bit & 6502 Legacy',
+          arch: 'i386 / MOS 6502',
+          kernel: 'FreeDOS Kernel build 2043 (HIMEMX + EMM386)',
+          mountPoint: 'A:\\',
+          wallpaper: 'bg-[#04130d]',
+          bootLines: [
+            'ColtBIOS v1.00 (C) 2026 Henry Green / Muir Middle School',
+            '640K Base Memory OK... Extended Memory OK',
+            'HIMEMX: Extended Memory Manager loaded.',
+            'C:\\> MOUNT A: /VIRTUAL/CARTRIDGE.ROM',
+            'SoundBlaster 16 IRQ 5 DMA 1 initialized.',
+            'C:\\> READY.'
+          ]
+        }
+      };
+
+      // --- Built-in Sample Binary Payloads ---
+      const SAMPLE_PAYLOADS = {
+        calcExe: {
+          name: 'MuirCalc_Setup.exe',
+          ext: 'exe',
+          targetOs: 'win',
+          magic: '4D 5A 90 00 (MZ / Win32 PE)',
+          osLabel: 'Windows 11 (x86_64)',
+          sizeText: '4.20 MB',
+          entropy: '6.42 bits',
+          hash: 'SHA256:9f84e1...c12a',
+          appType: 'win-installer',
+          appTitle: 'MuirCalc Scientific Setup Wizard'
+        },
+        studioDmg: {
+          name: 'ColtStudio.dmg',
+          ext: 'dmg',
+          targetOs: 'mac',
+          magic: '6B 6F 6C 79 (UDIF koly Block)',
+          osLabel: 'macOS Sequoia (ARM64)',
+          sizeText: '38.5 MB',
+          entropy: '7.18 bits',
+          hash: 'SHA256:4b19a0...88ef',
+          appType: 'mac-dmg',
+          appTitle: 'ColtStudio.app (macOS Bundle)'
+        },
+        ubuntuIso: {
+          name: 'ubuntu-24.04.iso',
+          ext: 'iso',
+          targetOs: 'linux',
+          magic: '43 44 30 30 31 (ISO-9660 CD001)',
+          osLabel: 'Ubuntu 24.04 (x86_64)',
+          sizeText: '1.12 GB',
+          entropy: '7.89 bits',
+          hash: 'SHA256:7d20c4...319b',
+          appType: 'linux-live',
+          appTitle: 'Ubuntu Live Installer & Terminal'
+        },
+        snakeRom: {
+          name: 'RetroSnake.rom',
+          ext: 'rom',
+          targetOs: 'retro',
+          magic: '4E 45 53 1A (6502 / DOS Cartridge)',
+          osLabel: 'FreeDOS / 6502 Legacy',
+          sizeText: '64.0 KB',
+          entropy: '4.95 bits',
+          hash: 'SHA256:1a05f9...77d1',
+          appType: 'retro-game',
+          appTitle: 'SNAKE.COM — Muir Arcade Edition'
+        }
+      };
+
+      // --- Global Application State ---
+      const state = {
+        theme: 'slate', // 'slate' | 'muir'
+        os: 'win',      // 'win' | 'mac' | 'linux' | 'retro'
+        vmPower: 'running', // 'running' | 'booting' | 'off'
+        cpuCores: 4,
+        ramGb: 8,
+        gpuAccel: true,
+        mountedFile: { ...SAMPLE_PAYLOADS.calcExe },
+        recentFiles: [],
+        openWindows: [], // Array of open guest OS window objects
+        zCounter: 20,
+        serialOpen: false,
+        serialLogs: [],
+        installedApps: []
+      };
+
+      // --- LocalStorage Helpers ---
+      function saveState() {
+        try {
+          localStorage.setItem(PREFIX + 'config', JSON.stringify({
+            theme: state.theme,
+            os: state.os,
+            cpuCores: state.cpuCores,
+            ramGb: state.ramGb,
+            gpuAccel: state.gpuAccel,
+            recentFiles: state.recentFiles
+          }));
+        } catch (e) {}
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(PREFIX + 'config');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            state.theme = parsed.theme || 'slate';
+            state.os = parsed.os || 'win';
+            state.cpuCores = parsed.cpuCores || 4;
+            state.ramGb = parsed.ramGb || 8;
+            state.gpuAccel = typeof parsed.gpuAccel === 'boolean' ? parsed.gpuAccel : true;
+            state.recentFiles = Array.isArray(parsed.recentFiles) ? parsed.recentFiles : [];
+          }
+        } catch (e) {}
+      }
+
+      // --- Serial Console Logger ---
+      function logSerial(tag, msg) {
+        const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        state.serialLogs.push({ time, tag, msg: String(msg) });
+        if (state.serialLogs.length > 150) state.serialLogs.shift();
+        renderSerialOutput();
+      }
+
+      function renderSerialOutput() {
+        const out = document.getElementById('serial-output');
+        if (!out) return;
+        out.innerHTML = state.serialLogs.map(entry => {
+          const color = entry.tag === 'ERR' ? 'text-rose-400'
+            : entry.tag === 'SYS' ? 'text-emerald-400'
+            : entry.tag === 'SHELL' ? 'vm-accent-text'
+            : 'hv-muted';
+          return `
+            <div class="leading-relaxed">
+              <span class="opacity-50">[${entry.time}]</span>
+              <span class="${color} font-bold">[${entry.tag}]</span>
+              <span class="text-slate-200">${esc(entry.msg)}</span>
+            </div>
+          `;
+        }).join('');
+        out.scrollTop = out.scrollHeight;
+      }
+
+      // --- Toast Notification ---
+      let toastTimer = null;
+      function showToast(msg) {
+        const el = document.getElementById('hv-toast');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.add('hidden'), 2200);
+      }
+
+      // --- Real File Binary Magic-Byte Inspector ---
+      async function inspectLocalFile(file) {
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        let hexMagic = '00 00 00 00';
+        let asciiHead = '';
+
+        try {
+          const slice = file.slice(0, 16);
+          const buf = await slice.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          hexMagic = Array.from(bytes.slice(0, 4))
+            .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+            .join(' ');
+          asciiHead = Array.from(bytes.slice(0, 4))
+            .map(b => (b >= 32 && b <= 126 ? String.fromCharCode(b) : '.'))
+            .join('');
+        } catch (e) {}
+
+        // Detect OS & Format from Magic Bytes + Extension
+        let targetOs = 'linux';
+        let magicLabel = `${hexMagic} (${asciiHead || 'RAW'})`;
+        let osLabel = 'Linux Container (x86_64)';
+        let appType = 'linux-live';
+
+        if (hexMagic.startsWith('4D 5A') || ext === 'exe') {
+          targetOs = 'win';
+          magicLabel = `${hexMagic} (MZ / Win32 PE)`;
+          osLabel = 'Windows 11 (x86_64)';
+          appType = 'win-installer';
+        } else if (ext === 'dmg' || hexMagic.startsWith('78 01') || hexMagic.startsWith('6B 6F')) {
+          targetOs = 'mac';
+          magicLabel = `${hexMagic} (Apple UDIF DMG)`;
+          osLabel = 'macOS Sequoia (ARM64)';
+          appType = 'mac-dmg';
+        } else if (hexMagic.startsWith('7F 45 4C 46') || ext === 'deb' || ext === 'sh' || ext === 'iso') {
+          targetOs = 'linux';
+          magicLabel = hexMagic.startsWith('7F 45 4C 46') ? `${hexMagic} (ELF Binary)` : `${hexMagic} (ISO/POSIX)`;
+          osLabel = 'Ubuntu 24.04 (x86_64)';
+          appType = 'linux-live';
+        } else if (ext === 'rom' || ext === 'bin' || hexMagic.startsWith('4E 45 53')) {
+          targetOs = 'retro';
+          magicLabel = `${hexMagic} (16-bit / ROM Image)`;
+          osLabel = 'FreeDOS / 6502 Legacy';
+          appType = 'retro-game';
+        } else if (ext === 'apk') {
+          targetOs = 'linux';
+          magicLabel = `${hexMagic} (Android APK/ZIP)`;
+          osLabel = 'Linux ART Runtime';
+          appType = 'linux-live';
+        }
+
+        const sizeKB = file.size / 1024;
+        const sizeText = sizeKB > 1024 ? `${(sizeKB / 1024).toFixed(2)} MB` : `${Math.max(1, Math.round(sizeKB))} KB`;
+        const pseudoHash = Math.abs(file.name.split('').reduce((a, c) => a + c.charCodeAt(0), file.size)).toString(16).padStart(6, '0');
+
+        const payload = {
+          name: file.name,
+          ext,
+          targetOs,
+          magic: magicLabel,
+          osLabel,
+          sizeText,
+          entropy: (5.4 + (file.size % 240) / 100).toFixed(2) + ' bits',
+          hash: `SHA256:${pseudoHash}...e91f`,
+          appType,
+          appTitle: file.name
+        };
+
+        loadPayloadIntoInspector(payload, true);
+      }
+
+      function loadPayloadIntoInspector(payload, autoBoot = false) {
+        state.mountedFile = { ...payload };
+        state.os = payload.targetOs;
+
+        // Add to recent list
+        state.recentFiles = [
+          { name: payload.name, targetOs: payload.targetOs, sizeText: payload.sizeText },
+          ...state.recentFiles.filter(r => r.name !== payload.name)
+        ].slice(0, 4);
+        saveState();
+
+        logSerial('SYS', `Inspected binary "${payload.name}" -> Magic: ${payload.magic} | Target: ${payload.osLabel}`);
+        syncAllUI();
+
+        if (autoBoot) {
+          bootVmAndLaunchPayload();
+        }
+      }
+
+      // --- VM Boot Sequence & Power Controls ---
+      let bootTimers = [];
+      function clearBootTimers() {
+        bootTimers.forEach(t => clearTimeout(t));
+        bootTimers = [];
+      }
+
+      function bootVmAndLaunchPayload(openPayloadWindow = true) {
+        clearBootTimers();
+        state.vmPower = 'booting';
+        state.openWindows = [];
+        syncAllUI();
+
+        const profile = OS_PROFILES[state.os];
+        const screen = document.getElementById('vm-screen');
+
+        screen.innerHTML = `
+          <div class="flex-1 bg-black p-5 sm:p-8 font-mono text-xs sm:text-sm text-emerald-400 flex flex-col justify-between">
+            <div class="space-y-2">
+              <div class="flex items-center gap-2 text-white font-bold border-b border-zinc-800 pb-2 mb-3">
+                <span class="px-2 py-0.5 rounded vm-accent-bg text-xs">BOOTING</span>
+                <span>${esc(profile.name)} — ${esc(profile.fullName)}</span>
+              </div>
+              <div id="boot-log-lines" class="space-y-1.5"></div>
+            </div>
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs text-zinc-400">
+                <span>Initializing virtual hardware (${state.cpuCores} vCPU, ${state.ramGb} GB RAM)...</span>
+                <span id="boot-pct">0%</span>
+              </div>
+              <div class="w-full h-2 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+                <div id="boot-progress" class="h-full vm-accent-bg transition-all duration-200" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const linesContainer = document.getElementById('boot-log-lines');
+        const progBar = document.getElementById('boot-progress');
+        const pctLabel = document.getElementById('boot-pct');
+
+        profile.bootLines.forEach((line, idx) => {
+          const t = setTimeout(() => {
+            const p = document.createElement('div');
+            p.textContent = line;
+            linesContainer.appendChild(p);
+            logSerial('BOOT', line);
+
+            const pct = Math.round(((idx + 1) / profile.bootLines.length) * 100);
+            progBar.style.width = pct + '%';
+            pctLabel.textContent = pct + '%';
+          }, idx * 240);
+          bootTimers.push(t);
+        });
+
+        const finishTimer = setTimeout(() => {
+          state.vmPower = 'running';
+          syncAllUI();
+          if (openPayloadWindow && state.mountedFile) {
+            launchMountedPayloadApp();
+          }
+        }, profile.bootLines.length * 240 + 260);
+        bootTimers.push(finishTimer);
+      }
+
+      function powerOffVm() {
+        clearBootTimers();
+        stopRetroSnake();
+        state.vmPower = 'off';
+        state.openWindows = [];
+        logSerial('SYS', `VM ${OS_PROFILES[state.os].name} powered off.`);
+        syncAllUI();
+      }
+
+      // --- Guest OS Window Management ---
+      function openGuestWindow(winObj) {
+        if (state.vmPower !== 'running') {
+          bootVmAndLaunchPayload(false);
+          return;
+        }
+        const existing = state.openWindows.find(w => w.id === winObj.id);
+        if (existing) {
+          existing.z = ++state.zCounter;
+          renderGuestDesktop();
+          return;
+        }
+        state.openWindows.push({
+          ...winObj,
+          z: ++state.zCounter
+        });
+        logSerial('EXEC', `Spawned guest process [${winObj.title}] inside ${OS_PROFILES[state.os].name}`);
+        renderGuestDesktop();
+      }
+
+      function closeGuestWindow(winId) {
+        if (winId === 'payload-retro') stopRetroSnake();
+        state.openWindows = state.openWindows.filter(w => w.id !== winId);
+        renderGuestDesktop();
+      }
+
+      function launchMountedPayloadApp() {
+        const file = state.mountedFile;
+        if (!file) {
+          showToast('[WARN] No image mounted');
+          return;
+        }
+
+        if (file.appType === 'win-installer') {
+          openGuestWindow({
+            id: 'payload-win',
+            title: `${file.name} — Setup Wizard`,
+            type: 'win-installer',
+            width: 'max-w-md'
+          });
+        } else if (file.appType === 'mac-dmg') {
+          openGuestWindow({
+            id: 'payload-mac',
+            title: `${file.name} — Disk Image Volume`,
+            type: 'mac-dmg',
+            width: 'max-w-lg'
+          });
+        } else if (file.appType === 'linux-live') {
+          openGuestWindow({
+            id: 'payload-linux',
+            title: `${file.name} — Package & Container Runner`,
+            type: 'linux-live',
+            width: 'max-w-lg'
+          });
+        } else {
+          openGuestWindow({
+            id: 'payload-retro',
+            title: `${file.name} — 6502 / DOS Runtime`,
+            type: 'retro-game',
+            width: 'max-w-md'
+          });
+        }
+      }
+
+      // --- Render Guest OS Desktop Viewport ---
+      function renderGuestDesktop() {
+        const screen = document.getElementById('vm-screen');
+        const profile = OS_PROFILES[state.os];
+
+        if (state.vmPower === 'booting') return;
+
+        if (state.vmPower === 'off') {
+          screen.innerHTML = `
+            <div class="flex-1 bg-zinc-950 flex flex-col items-center justify-center p-6 text-center font-mono space-y-4">
+              <div class="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500">
+                <i data-lucide="power-off" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <div class="text-sm font-bold text-zinc-300">${esc(profile.name)} is Powered Off</div>
+                <div class="text-xs text-zinc-500 mt-1">Click Boot VM or mount a binary image to start the hypervisor session.</div>
+              </div>
+              <button id="btn-screen-boot" class="px-4 py-2 rounded-lg vm-accent-bg text-xs font-bold">
+                Power On ${esc(profile.name)}
+              </button>
+            </div>
+          `;
+          document.getElementById('btn-screen-boot').addEventListener('click', () => bootVmAndLaunchPayload(true));
+          lucide.createIcons();
+          return;
+        }
+
+        const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const isRetro = state.os === 'retro';
+        const isMac = state.os === 'mac';
+
+        screen.innerHTML = `
+          <div class="flex-1 relative overflow-hidden flex flex-col ${profile.wallpaper} ${isRetro ? 'crt-scanlines font-mono' : ''}">
+            
+            <!-- macOS Top Menu Bar (only on ColtMac VM) -->
+            ${isMac ? `
+              <div class="bg-black/45 backdrop-blur-md text-white px-3 py-1 flex items-center justify-between text-[11px] border-b border-white/10 z-20">
+                <div class="flex items-center gap-3 font-semibold">
+                  <span>&#63743;</span>
+                  <span class="font-bold">Finder</span>
+                  <span class="opacity-75">File</span>
+                  <span class="opacity-75">Edit</span>
+                  <span class="opacity-75">View</span>
+                  <span class="opacity-75">Go</span>
+                </div>
+                <div class="flex items-center gap-3 font-mono text-[10px]">
+                  <span>ARM64 Rosetta2</span>
+                  <span>${nowTime}</span>
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- Desktop Icons Grid -->
+            <div class="p-4 grid grid-cols-2 sm:grid-cols-1 gap-3 w-fit z-10">
+              ${state.mountedFile ? `
+                <button id="desk-icon-mounted" class="w-24 p-2 rounded-xl hover:bg-white/10 flex flex-col items-center text-center gap-1.5 transition group">
+                  <div class="w-11 h-11 rounded-xl vm-accent-bg flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                    <i data-lucide="disc" class="w-6 h-6"></i>
+                  </div>
+                  <span class="text-[11px] font-semibold text-white drop-shadow leading-tight break-all">
+                    ${esc(state.mountedFile.name)}
+                  </span>
+                </button>
+              ` : ''}
+
+              <button id="desk-icon-terminal" class="w-24 p-2 rounded-xl hover:bg-white/10 flex flex-col items-center text-center gap-1.5 transition group">
+                <div class="w-11 h-11 rounded-xl bg-zinc-900/90 border border-white/20 text-emerald-400 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                  <i data-lucide="terminal" class="w-5 h-5"></i>
+                </div>
+                <span class="text-[11px] font-semibold text-white drop-shadow">
+                  ${isRetro ? 'COMMAND.COM' : 'Guest Terminal'}
+                </span>
+              </button>
+
+              <button id="desk-icon-files" class="w-24 p-2 rounded-xl hover:bg-white/10 flex flex-col items-center text-center gap-1.5 transition group">
+                <div class="w-11 h-11 rounded-xl bg-amber-500/90 text-zinc-950 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                  <i data-lucide="folder-open" class="w-5 h-5"></i>
+                </div>
+                <span class="text-[11px] font-semibold text-white drop-shadow">
+                  ${isMac ? 'Applications' : isRetro ? 'C:\\DIR' : 'File Manager'}
+                </span>
+              </button>
+
+              <button id="desk-icon-sysmon" class="w-24 p-2 rounded-xl hover:bg-white/10 flex flex-col items-center text-center gap-1.5 transition group">
+                <div class="w-11 h-11 rounded-xl bg-sky-500/90 text-zinc-950 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                  <i data-lucide="activity" class="w-5 h-5"></i>
+                </div>
+                <span class="text-[11px] font-semibold text-white drop-shadow">
+                  SysMonitor
+                </span>
+              </button>
+            </div>
+
+            <!-- Open Guest OS Application Windows Overlay -->
+            <div id="guest-windows-layer" class="absolute inset-0 pointer-events-none p-4 sm:p-8 flex items-center justify-center z-20">
+              ${state.openWindows.map(w => renderGuestWindowHtml(w)).join('')}
+            </div>
+
+            <!-- Bottom Taskbar / Dock -->
+            <div class="mt-auto z-30 ${
+              isMac
+                ? 'pb-2 flex justify-center'
+                : 'bg-slate-950/90 backdrop-blur-md border-t border-white/10 px-3 py-1.5 flex items-center justify-between text-xs'
+            }">
+              ${isMac ? `
+                <!-- macOS Floating Dock -->
+                <div class="bg-white/15 backdrop-blur-xl border border-white/20 px-3 py-1.5 rounded-2xl flex items-center gap-2.5 shadow-2xl">
+                  <button data-dock-act="files" title="Finder / Applications" class="w-9 h-9 rounded-xl bg-sky-500 text-white flex items-center justify-center hover:-translate-y-1 transition-transform">
+                    <i data-lucide="smile" class="w-5 h-5"></i>
+                  </button>
+                  <button data-dock-act="mounted" title="Open Mounted DMG" class="w-9 h-9 rounded-xl vm-accent-bg flex items-center justify-center hover:-translate-y-1 transition-transform">
+                    <i data-lucide="disc" class="w-5 h-5"></i>
+                  </button>
+                  <button data-dock-act="terminal" title="Terminal" class="w-9 h-9 rounded-xl bg-zinc-900 text-emerald-400 border border-white/20 flex items-center justify-center hover:-translate-y-1 transition-transform">
+                    <i data-lucide="terminal" class="w-5 h-5"></i>
+                  </button>
+                  <button data-dock-act="sysmon" title="Activity Monitor" class="w-9 h-9 rounded-xl bg-amber-500 text-zinc-950 flex items-center justify-center hover:-translate-y-1 transition-transform">
+                    <i data-lucide="activity" class="w-5 h-5"></i>
+                  </button>
+                </div>
+              ` : `
+                <!-- Windows / Linux / FreeDOS Taskbar -->
+                <div class="flex items-center gap-2">
+                  <button data-dock-act="mounted" class="px-2.5 py-1 rounded vm-accent-bg font-bold text-xs flex items-center gap-1.5">
+                    <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+                    <span>${isRetro ? 'MENU' : 'Start'}</span>
+                  </button>
+                  <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                    ${state.openWindows.map(w => `
+                      <span class="px-2.5 py-1 rounded bg-white/10 text-white text-[11px] font-mono truncate max-w-[160px]">
+                        ${esc(w.title)}
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+                <div class="flex items-center gap-3 font-mono text-[11px] text-slate-300">
+                  <span class="hidden sm:inline">${esc(profile.mountPoint)}</span>
+                  <span>${nowTime}</span>
+                </div>
+              `}
+            </div>
+
+          </div>
+        `;
+
+        // Bind Desktop Icons & Dock
+        const mountedIcon = document.getElementById('desk-icon-mounted');
+        if (mountedIcon) mountedIcon.addEventListener('click', launchMountedPayloadApp);
+
+        document.getElementById('desk-icon-terminal').addEventListener('click', () => {
+          openGuestWindow({ id: 'win-term', title: `${profile.name} — Shell Terminal`, type: 'terminal', width: 'max-w-lg' });
+        });
+        document.getElementById('desk-icon-files').addEventListener('click', () => {
+          openGuestWindow({ id: 'win-files', title: `${profile.mountPoint} — Virtual File System`, type: 'files', width: 'max-w-lg' });
+        });
+        document.getElementById('desk-icon-sysmon').addEventListener('click', () => {
+          openGuestWindow({ id: 'win-sysmon', title: 'Hypervisor Resource Monitor', type: 'sysmon', width: 'max-w-md' });
+        });
+
+        screen.querySelectorAll('[data-dock-act]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const act = btn.getAttribute('data-dock-act');
+            if (act === 'mounted') launchMountedPayloadApp();
+            else if (act === 'terminal') openGuestWindow({ id: 'win-term', title: `${profile.name} — Shell Terminal`, type: 'terminal', width: 'max-w-lg' });
+            else if (act === 'files') openGuestWindow({ id: 'win-files', title: `${profile.mountPoint} — Virtual File System`, type: 'files', width: 'max-w-lg' });
+            else if (act === 'sysmon') openGuestWindow({ id: 'win-sysmon', title: 'Hypervisor Resource Monitor', type: 'sysmon', width: 'max-w-md' });
+          });
+        });
+
+        // Bind Window Close & Interactive Controls
+        screen.querySelectorAll('[data-close-win]').forEach(btn => {
+          btn.addEventListener('click', () => closeGuestWindow(btn.getAttribute('data-close-win')));
+        });
+
+        bindActiveGuestWindowInteractions();
+        lucide.createIcons();
+      }
+
+      // --- Render Individual Guest App Windows ---
+      function renderGuestWindowHtml(win) {
+        const file = state.mountedFile || { name: 'Payload.bin', sizeText: '1 MB' };
+        let bodyHtml = '';
+
+        if (win.type === 'win-installer') {
+          bodyHtml = `
+            <div class="p-4 space-y-3 text-xs">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/40 flex items-center justify-center font-bold">EXE</div>
+                <div>
+                  <div class="font-bold text-sm">${esc(file.name)}</div>
+                  <div class="hv-muted text-[11px]">Win32 PE Binary &bull; Installing to C:\\Program Files\\ColtApps\\</div>
+                </div>
+              </div>
+              <div class="p-2.5 rounded bg-black/40 border hv-border font-mono text-[11px] space-y-1 text-slate-300">
+                <div>&gt; Verifying PE signature &amp; subsystem... OK</div>
+                <div>&gt; Mapping DirectX / Win32 API thunks... OK</div>
+                <div id="win-setup-status" class="text-sky-400">&gt; Ready to extract &amp; launch executable.</div>
+              </div>
+              <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div id="win-setup-bar" class="h-full bg-sky-400 transition-all duration-300" style="width: 35%"></div>
+              </div>
+              <div class="flex justify-end gap-2 pt-1">
+                <button id="btn-win-install-run" class="px-3.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold">
+                  Install &amp; Launch App
+                </button>
+              </div>
+            </div>
+          `;
+        } else if (win.type === 'mac-dmg') {
+          const isInstalled = state.installedApps.includes(file.name);
+          bodyHtml = `
+            <div class="p-4 space-y-3 text-xs">
+              <div class="text-center text-[11px] hv-muted">
+                Mounted Apple Disk Image (<span class="font-mono text-purple-400">${esc(file.name)}</span>)
+              </div>
+              <div class="grid grid-cols-3 items-center gap-2 p-4 rounded-xl bg-black/40 border hv-border text-center">
+                <div class="flex flex-col items-center gap-1.5">
+                  <div class="w-12 h-12 rounded-2xl bg-purple-500 text-white flex items-center justify-center font-bold shadow-lg">APP</div>
+                  <span class="font-bold truncate max-w-[110px]">${esc(file.name.replace(/\.dmg$/i, '.app'))}</span>
+                </div>
+                <div class="text-purple-400 font-mono font-bold text-lg">&rarr;</div>
+                <div class="flex flex-col items-center gap-1.5">
+                  <div class="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center font-bold">Apps</div>
+                  <span class="font-bold">/Applications</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between pt-1">
+                <span id="mac-dmg-status" class="font-mono text-[11px] text-purple-300">
+                  ${isInstalled ? 'Installed in /Applications' : 'Click Install to copy .app bundle'}
+                </span>
+                <button id="btn-mac-install" class="px-3.5 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-400 text-white font-bold">
+                  ${isInstalled ? 'Launch .app' : 'Copy to Applications'}
+                </button>
+              </div>
+            </div>
+          `;
+        } else if (win.type === 'linux-live') {
+          bodyHtml = `
+            <div class="p-4 space-y-3 font-mono text-xs">
+              <div class="text-amber-400 font-bold">Mounting ${esc(file.name)} (${esc(file.sizeText)})</div>
+              <div class="p-3 rounded-lg bg-black/70 border hv-border text-[11px] text-emerald-400 space-y-1">
+                <div>$ sudo mount -o loop /dev/sr0 /mnt/cdrom</div>
+                <div>mount: /mnt/cdrom: WARNING: source write-protected, mounted read-only.</div>
+                <div>$ ls -lh /mnt/cdrom</div>
+                <div class="text-slate-300">-r-xr-xr-x 1 root root ${esc(file.sizeText)} ${esc(file.name)}</div>
+                <div class="text-amber-300">Ready to execute inside Ubuntu 24.04 sandbox container.</div>
+              </div>
+              <div class="flex justify-end">
+                <button id="btn-linux-exec" class="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold">
+                  Execute Container Payload
+                </button>
+              </div>
+            </div>
+          `;
+        } else if (win.type === 'retro-game') {
+          bodyHtml = `
+            <div class="p-3 space-y-2 font-mono text-xs text-center">
+              <div class="flex items-center justify-between text-[11px] text-emerald-400">
+                <span>ROM: ${esc(file.name)}</span>
+                <span>SCORE: <strong id="snake-score">0</strong></span>
+              </div>
+              <canvas id="retro-snake-canvas" width="280" height="180" class="mx-auto bg-black border border-emerald-500/50 rounded"></canvas>
+              <div class="flex items-center justify-center gap-2 pt-1">
+                <button data-dir="UP" class="px-2.5 py-1 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">&uarr;</button>
+                <button data-dir="LEFT" class="px-2.5 py-1 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">&larr;</button>
+                <button data-dir="DOWN" class="px-2.5 py-1 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">&darr;</button>
+                <button data-dir="RIGHT" class="px-2.5 py-1 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">&rarr;</button>
+                <button id="btn-snake-restart" class="px-2.5 py-1 rounded bg-emerald-500 text-slate-950 font-bold ml-2">Reset</button>
+              </div>
+            </div>
+          `;
+        } else if (win.type === 'terminal') {
+          const prof = OS_PROFILES[state.os];
+          bodyHtml = `
+            <div class="p-3 font-mono text-xs space-y-2 bg-black/80">
+              <div class="text-emerald-400">${esc(prof.kernel)}</div>
+              <div class="hv-muted text-[11px]">Mounted Volume: ${esc(prof.mountPoint)} (${esc(file.name)})</div>
+              <div id="guest-term-history" class="space-y-1 text-[11px] max-h-36 overflow-y-auto text-slate-200">
+                <div>Type <strong>help</strong>, <strong>ls</strong>, <strong>uname -a</strong>, or <strong>run</strong> below.</div>
+              </div>
+              <form id="guest-term-form" class="flex items-center gap-1.5 border-t border-zinc-800 pt-2">
+                <span class="vm-accent-text font-bold">$</span>
+                <input id="guest-term-input" type="text" autocomplete="off" placeholder="Enter command..." class="flex-1 bg-transparent focus:outline-none text-white" />
+              </form>
+            </div>
+          `;
+        } else if (win.type === 'files') {
+          const prof = OS_PROFILES[state.os];
+          bodyHtml = `
+            <div class="p-3 font-mono text-xs space-y-2">
+              <div class="px-2 py-1 rounded bg-black/40 border hv-border text-[11px] hv-muted">
+                Path: ${esc(prof.mountPoint)}
+              </div>
+              <div class="divide-y hv-border border hv-border rounded-lg overflow-hidden">
+                <div class="p-2 flex justify-between items-center bg-white/5">
+                  <span class="font-bold vm-accent-text">${esc(file.name)}</span>
+                  <span class="hv-muted">${esc(file.sizeText)}</span>
+                </div>
+                <div class="p-2 flex justify-between items-center">
+                  <span>Muir_Student_Docs/</span>
+                  <span class="hv-muted">DIR</span>
+                </div>
+                <div class="p-2 flex justify-between items-center">
+                  <span>ColtApps_Runtime.sys</span>
+                  <span class="hv-muted">1.4 MB</span>
+                </div>
+              </div>
+            </div>
+          `;
+        } else if (win.type === 'sysmon') {
+          bodyHtml = `
+            <div class="p-4 font-mono text-xs space-y-2.5">
+              <div class="flex justify-between"><span class="hv-muted">Guest OS:</span><span class="font-bold">${esc(OS_PROFILES[state.os].fullName)}</span></div>
+              <div class="flex justify-between"><span class="hv-muted">vCPU Allocation:</span><span class="font-bold vm-accent-text">${state.cpuCores} Virtual Cores</span></div>
+              <div class="flex justify-between"><span class="hv-muted">Memory Pool:</span><span class="font-bold text-emerald-400">${state.ramGb} GB DDR5 Emulated</span></div>
+              <div class="flex justify-between"><span class="hv-muted">GPU Pipeline:</span><span class="font-bold">${state.gpuAccel ? 'Enabled (VirGL/Metal)' : 'Software Rasterizer'}</span></div>
+              <div class="flex justify-between"><span class="hv-muted">Mounted Image:</span><span class="font-bold truncate max-w-[180px]">${esc(file.name)}</span></div>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="pointer-events-auto w-full ${win.width || 'max-w-md'} hv-panel border hv-border rounded-xl shadow-2xl overflow-hidden" style="z-index: ${win.z}">
+            <div class="hv-elevated border-b px-3 py-2 flex items-center justify-between text-xs font-mono">
+              <span class="font-bold truncate pr-2">${esc(win.title)}</span>
+              <button data-close-win="${win.id}" class="w-5 h-5 rounded bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white font-bold flex items-center justify-center">
+                &times;
+              </button>
+            </div>
+            ${bodyHtml}
+          </div>
+        `;
+      }
+
+      // --- Guest Window Interactive Handlers ---
+      function bindActiveGuestWindowInteractions() {
+        // Windows Setup Wizard
+        const winBtn = document.getElementById('btn-win-install-run');
+        if (winBtn) {
+          winBtn.addEventListener('click', () => {
+            const bar = document.getElementById('win-setup-bar');
+            const st = document.getElementById('win-setup-status');
+            bar.style.width = '100%';
+            st.textContent = '> Installation complete! Running Win32 application inside ColtWin VM.';
+            winBtn.textContent = 'Running (PID 4102)';
+            winBtn.disabled = true;
+            logSerial('WIN32', `Executed ${state.mountedFile.name} (PID 4102) successfully.`);
+            showToast('[ColtWin] Executable running');
+          });
+        }
+
+        // macOS DMG Installer
+        const macBtn = document.getElementById('btn-mac-install');
+        if (macBtn) {
+          macBtn.addEventListener('click', () => {
+            const name = state.mountedFile.name;
+            if (!state.installedApps.includes(name)) {
+              state.installedApps.push(name);
+              logSerial('DARWIN', `Copied ${name.replace(/\.dmg$/i, '.app')} to /Applications`);
+            }
+            document.getElementById('mac-dmg-status').textContent = 'Bundle verified & running in macOS Sequoia';
+            macBtn.textContent = 'Running';
+            showToast('[ColtMac] .app bundle launched');
+          });
+        }
+
+        // Linux Container Exec
+        const linBtn = document.getElementById('btn-linux-exec');
+        if (linBtn) {
+          linBtn.addEventListener('click', () => {
+            logSerial('LINUX', `Executed container binary ${state.mountedFile.name} with exit code 0`);
+            linBtn.textContent = 'Process Active (PID 1842)';
+            showToast('[ColtLinux] Container process started');
+          });
+        }
+
+        // Guest Terminal Form
+        const termForm = document.getElementById('guest-term-form');
+        if (termForm) {
+          termForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const inp = document.getElementById('guest-term-input');
+            const out = document.getElementById('guest-term-history');
+            const cmd = inp.value.trim();
+            if (!cmd) return;
+            const reply = executeGuestCommand(cmd);
+            out.insertAdjacentHTML('beforeend', `<div class="vm-accent-text">$ ${esc(cmd)}</div><div>${esc(reply)}</div>`);
+            out.scrollTop = out.scrollHeight;
+            inp.value = '';
+          });
+        }
+
+        // Retro Snake Game Canvas
+        const snakeCanvas = document.getElementById('retro-snake-canvas');
+        if (snakeCanvas) {
+          startRetroSnake(snakeCanvas);
+        }
+      }
+
+      // --- Playable Retro Snake Mini-Game for ColtRetro VM ---
+      let snakeTimer = null;
+      let snakeDir = 'RIGHT';
+      function stopRetroSnake() {
+        if (snakeTimer) clearInterval(snakeTimer);
+        snakeTimer = null;
+      }
+
+      function startRetroSnake(canvas) {
+        stopRetroSnake();
+        const ctx = canvas.getContext('2d');
+        const grid = 14;
+        const cols = Math.floor(canvas.width / grid);
+        const rows = Math.floor(canvas.height / grid);
+        let snake = [{ x: 6, y: 6 }, { x: 5, y: 6 }, { x: 4, y: 6 }];
+        let food = { x: 12, y: 6 };
+        let score = 0;
+        snakeDir = 'RIGHT';
+
+        document.querySelectorAll('[data-dir]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const d = btn.getAttribute('data-dir');
+            if (d === 'UP' && snakeDir !== 'DOWN') snakeDir = 'UP';
+            if (d === 'DOWN' && snakeDir !== 'UP') snakeDir = 'DOWN';
+            if (d === 'LEFT' && snakeDir !== 'RIGHT') snakeDir = 'LEFT';
+            if (d === 'RIGHT' && snakeDir !== 'LEFT') snakeDir = 'RIGHT';
+          });
+        });
+
+        const restartBtn = document.getElementById('btn-snake-restart');
+        if (restartBtn) {
+          restartBtn.addEventListener('click', () => startRetroSnake(canvas));
+        }
+
+        snakeTimer = setInterval(() => {
+          const head = { ...snake[0] };
+          if (snakeDir === 'UP') head.y--;
+          if (snakeDir === 'DOWN') head.y++;
+          if (snakeDir === 'LEFT') head.x--;
+          if (snakeDir === 'RIGHT') head.x++;
+
+          // Wrap walls for kid-friendly arcade play
+          if (head.x < 0) head.x = cols - 1;
+          if (head.x >= cols) head.x = 0;
+          if (head.y < 0) head.y = rows - 1;
+          if (head.y >= rows) head.y = 0;
+
+          snake.unshift(head);
+          if (head.x === food.x && head.y === food.y) {
+            score += 10;
+            const scEl = document.getElementById('snake-score');
+            if (scEl) scEl.textContent = score;
+            food = {
+              x: Math.floor(Math.random() * cols),
+              y: Math.floor(Math.random() * rows)
+            };
+          } else {
+            snake.pop();
+          }
+
+          ctx.fillStyle = '#030a06';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          ctx.fillStyle = '#eab308';
+          ctx.fillRect(food.x * grid + 1, food.y * grid + 1, grid - 2, grid - 2);
+
+          ctx.fillStyle = '#10b981';
+          snake.forEach(seg => {
+            ctx.fillRect(seg.x * grid + 1, seg.y * grid + 1, grid - 2, grid - 2);
+          });
+        }, 140);
+      }
+
+      // --- Shared Guest / Serial Shell Command Interpreter ---
+      function executeGuestCommand(rawCmd) {
+        const cmd = rawCmd.trim().toLowerCase();
+        const prof = OS_PROFILES[state.os];
+        const file = state.mountedFile;
+
+        if (cmd === 'help') {
+          return 'Available commands: ls, uname -a, mount, run, clear, help';
+        }
+        if (cmd === 'ls' || cmd === 'dir') {
+          return `${prof.mountPoint} -> ${file ? file.name : '(empty)'}  Muir_Student_Docs/  ColtApps_Runtime.sys`;
+        }
+        if (cmd === 'uname -a' || cmd === 'ver') {
+          return `${prof.fullName} | ${prof.kernel} | Arch: ${prof.arch}`;
+        }
+        if (cmd === 'mount') {
+          return file
+            ? `Mounted ${file.name} (${file.magic}) at ${prof.mountPoint}`
+            : 'No virtual disk image mounted.';
+        }
+        if (cmd === 'run') {
+          launchMountedPayloadApp();
+          return `Launching ${file ? file.name : 'default payload'}...`;
+        }
+        if (cmd === 'clear') {
+          state.serialLogs = [];
+          renderSerialOutput();
+          return 'Cleared.';
+        }
+        return `Unknown command: "${rawCmd}". Type "help" for available commands.`;
+      }
+
+      // --- Sync All UI Elements ---
+      function syncAllUI() {
+        // Theme
+        const html = document.documentElement;
+        html.classList.toggle('theme-muir', state.theme === 'muir');
+        document.getElementById('theme-label').textContent = state.theme === 'muir' ? 'Muir Colts' : 'Slate Dark';
+
+        // OS Accent
+        document.body.setAttribute('data-os', state.os);
+        const profile = OS_PROFILES[state.os];
+
+        // Telemetry Header
+        const dot = document.getElementById('telemetry-dot');
+        const stText = document.getElementById('telemetry-state');
+        if (state.vmPower === 'running') {
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+          stText.className = 'font-bold text-emerald-400';
+          stText.textContent = 'RUNNING';
+        } else if (state.vmPower === 'booting') {
+          dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-ping';
+          stText.className = 'font-bold text-amber-400';
+          stText.textContent = 'BOOTING';
+        } else {
+          dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+          stText.className = 'font-bold text-rose-400';
+          stText.textContent = 'OFFLINE';
+        }
+
+        document.getElementById('telemetry-arch').textContent = profile.arch.split(' ')[0];
+        document.getElementById('telemetry-ram').textContent = `${(state.ramGb * 0.3).toFixed(1)} / ${state.ramGb} GB`;
+
+        // Binary Inspector
+        if (state.mountedFile) {
+          document.getElementById('insp-badge').textContent = state.mountedFile.ext.toUpperCase();
+          document.getElementById('insp-name').textContent = state.mountedFile.name;
+          document.getElementById('insp-magic').textContent = state.mountedFile.magic;
+          document.getElementById('insp-os').textContent = state.mountedFile.osLabel;
+          document.getElementById('insp-size').textContent = `${state.mountedFile.sizeText} • ${state.mountedFile.entropy}`;
+          document.getElementById('insp-hash').textContent = state.mountedFile.hash;
+          document.getElementById('vm-mounted-label').textContent = `Mounted: ${state.mountedFile.name}`;
+        } else {
+          document.getElementById('insp-badge').textContent = 'EMPTY';
+          document.getElementById('insp-name').textContent = 'No image mounted';
+          document.getElementById('vm-mounted-label').textContent = 'No image mounted';
+        }
+
+        // VM Header Pill
+        document.getElementById('vm-header-pill').textContent = `${profile.name} (${profile.fullName.split('/')[0].trim()})`;
+
+        // Highlight Active Guest OS Profile Card
+        document.querySelectorAll('.vm-profile-btn').forEach(btn => {
+          const isSelected = btn.getAttribute('data-vm') === state.os;
+          btn.className = `vm-profile-btn p-2 rounded-xl border text-left transition ${
+            isSelected ? 'vm-accent-soft border' : 'hv-elevated hv-border hover:opacity-90'
+          }`;
+        });
+
+        // Sliders
+        document.getElementById('hw-cpu-slider').value = state.cpuCores;
+        document.getElementById('hw-cpu-label').textContent = `${state.cpuCores} Cores`;
+        document.getElementById('hw-ram-slider').value = state.ramGb;
+        document.getElementById('hw-ram-label').textContent = `${state.ramGb} GB`;
+        document.getElementById('hw-gpu-toggle').checked = state.gpuAccel;
+
+        // Recent Mounted List
+        const recentEl = document.getElementById('recent-list');
+        if (state.recentFiles.length === 0) {
+          recentEl.innerHTML = `<div class="hv-muted">MuirCalc_Setup.exe (Default)</div>`;
+        } else {
+          recentEl.innerHTML = state.recentFiles.map(r => `
+            <div class="px-2 py-1 rounded hv-elevated border hv-border flex justify-between">
+              <span class="truncate font-semibold">${esc(r.name)}</span>
+              <span class="hv-muted">${esc(r.sizeText)}</span>
+            </div>
+          `).join('');
+        }
+
+        renderGuestDesktop();
+      }
+
+      // --- Live CPU Load Jitter Telemetry ---
+      function startTelemetryTicker() {
+        setInterval(() => {
+          const cpuEl = document.getElementById('telemetry-cpu');
+          if (!cpuEl) return;
+          if (state.vmPower !== 'running') {
+            cpuEl.textContent = '0%';
+            return;
+          }
+          const base = state.openWindows.length > 0 ? 18 : 6;
+          const jitter = Math.floor(Math.random() * 9);
+          cpuEl.textContent = `${base + jitter}%`;
+        }, 1600);
+      }
+
+      // --- Escape Helper ---
+      function esc(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      // --- Bind All Events ---
+      function bindEvents() {
+        // Theme Switch
+        document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+          state.theme = state.theme === 'slate' ? 'muir' : 'slate';
+          saveState();
+          syncAllUI();
+        });
+
+        // Dropzone & File Input
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('file-input');
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files && e.target.files[0]) {
+            inspectLocalFile(e.target.files[0]);
+          }
+        });
+
+        dropzone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dropzone.classList.add('border-sky-400');
+        });
+        dropzone.addEventListener('dragleave', () => {
+          dropzone.classList.remove('border-sky-400');
+        });
+        dropzone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropzone.classList.remove('border-sky-400');
+          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            inspectLocalFile(e.dataTransfer.files[0]);
+          }
+        });
+
+        // Sample Payloads
+        document.querySelectorAll('.sample-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const key = btn.getAttribute('data-sample');
+            if (SAMPLE_PAYLOADS[key]) {
+              loadPayloadIntoInspector(SAMPLE_PAYLOADS[key], true);
+            }
+          });
+        });
+
+        // Mount & Execute / Eject
+        document.getElementById('btn-mount-run').addEventListener('click', () => {
+          if (state.vmPower !== 'running') {
+            bootVmAndLaunchPayload(true);
+          } else {
+            launchMountedPayloadApp();
+          }
+        });
+
+        document.getElementById('btn-eject-image').addEventListener('click', () => {
+          state.mountedFile = null;
+          state.openWindows = state.openWindows.filter(w => !w.id.startsWith('payload-'));
+          logSerial('SYS', 'Ejected virtual disk image from drive.');
+          showToast('[HV] Virtual image ejected');
+          syncAllUI();
+        });
+
+        // Guest OS Profile Selector
+        document.querySelectorAll('.vm-profile-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const nextOs = btn.getAttribute('data-vm');
+            if (nextOs === state.os && state.vmPower === 'running') return;
+            state.os = nextOs;
+            saveState();
+            bootVmAndLaunchPayload(false);
+          });
+        });
+
+        // Hardware Sliders
+        document.getElementById('hw-cpu-slider').addEventListener('input', (e) => {
+          state.cpuCores = Number(e.target.value);
+          saveState();
+          syncAllUI();
+        });
+        document.getElementById('hw-ram-slider').addEventListener('input', (e) => {
+          state.ramGb = Number(e.target.value);
+          saveState();
+          syncAllUI();
+        });
+        document.getElementById('hw-gpu-toggle').addEventListener('change', (e) => {
+          state.gpuAccel = e.target.checked;
+          saveState();
+          logSerial('HW', `GPU Acceleration set to ${state.gpuAccel}`);
+        });
+
+        // VM Power & Fullscreen Controls
+        document.getElementById('btn-vm-boot').addEventListener('click', () => bootVmAndLaunchPayload(false));
+        document.getElementById('btn-vm-reboot').addEventListener('click', () => {
+          logSerial('SYS', `Rebooting ${OS_PROFILES[state.os].name}...`);
+          bootVmAndLaunchPayload(false);
+        });
+        document.getElementById('btn-vm-snapshot').addEventListener('click', () => {
+          saveState();
+          logSerial('SNAP', `Saved VM state snapshot (${OS_PROFILES[state.os].name}, ${state.ramGb}GB RAM)`);
+          showToast('[SNAP] VM snapshot saved');
+        });
+        document.getElementById('btn-vm-stop').addEventListener('click', powerOffVm);
+
+        document.getElementById('btn-vm-fullscreen').addEventListener('click', () => {
+          const sidebar = document.getElementById('left-sidebar');
+          sidebar.classList.toggle('hidden');
+        });
+
+        // Serial Console Drawer
+        const serialDrawer = document.getElementById('serial-drawer');
+        document.getElementById('btn-toggle-console').addEventListener('click', () => {
+          state.serialOpen = !state.serialOpen;
+          serialDrawer.classList.toggle('hidden', !state.serialOpen);
+          serialDrawer.classList.toggle('flex', state.serialOpen);
+          if (state.serialOpen) renderSerialOutput();
+        });
+        document.getElementById('btn-serial-close').addEventListener('click', () => {
+          state.serialOpen = false;
+          serialDrawer.classList.add('hidden');
+          serialDrawer.classList.remove('flex');
+        });
+        document.getElementById('btn-serial-clear').addEventListener('click', () => {
+          state.serialLogs = [];
+          renderSerialOutput();
+        });
+        document.getElementById('serial-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const inp = document.getElementById('serial-input');
+          const cmd = inp.value.trim();
+          if (!cmd) return;
+          logSerial('SHELL', `$ ${cmd}`);
+          const res = executeGuestCommand(cmd);
+          if (cmd.toLowerCase() !== 'clear') logSerial('OUT', res);
+          inp.value = '';
+        });
+
+        // Arrow Keys for Retro Snake Game
+        window.addEventListener('keydown', (e) => {
+          if (!snakeTimer) return;
+          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+            if (e.key === 'ArrowUp' && snakeDir !== 'DOWN') snakeDir = 'UP';
+            if (e.key === 'ArrowDown' && snakeDir !== 'UP') snakeDir = 'DOWN';
+            if (e.key === 'ArrowLeft' && snakeDir !== 'RIGHT') snakeDir = 'LEFT';
+            if (e.key === 'ArrowRight' && snakeDir !== 'LEFT') snakeDir = 'RIGHT';
+          }
+        });
+      }
+
+      // --- Boot Hypervisor ---
+      loadState();
+      bindEvents();
+      logSerial('SYS', 'ColtEmulate v1.0.0 initialized by Henry Green for Muir Middle School (HVS)');
+      syncAllUI();
+      startTelemetryTicker();
+      lucide.createIcons();
+    })();
+  </script>
+</body>
+</html>
